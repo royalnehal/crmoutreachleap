@@ -1,0 +1,408 @@
+// NOTE: MySQL (via Prisma) does not support native scalar list/array types.
+// Any field that conceptually holds an array (e.g. String[]) is modeled as `Json` instead.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum SiteType {
+  BLOG
+  MAGAZINE
+  NEWS
+  FORUM
+  NICHE_SITE
+}
+
+enum LinkType {
+  DOFOLLOW
+  NOFOLLOW
+  MIXED
+}
+
+enum ContentWrittenBy {
+  CLIENT
+  AGENCY
+  SITE_OWNER
+}
+
+enum AcceptsAiContent {
+  YES
+  NO
+  WITH_DISCLOSURE
+}
+
+enum RelationshipStatus {
+  COLD
+  NEGOTIATING
+  ACTIVE
+  PREFERRED
+  BLACKLISTED
+}
+
+enum ResponseRate {
+  FAST
+  MEDIUM
+  SLOW
+  UNRESPONSIVE
+}
+
+enum SiteStatus {
+  ACTIVE
+  INACTIVE
+  ON_HOLD
+  BLACKLISTED
+}
+
+enum GooglePenalized {
+  YES
+  NO
+  UNKNOWN
+}
+
+enum EditorialStandards {
+  STRICT
+  MODERATE
+  FLEXIBLE
+}
+
+enum ClientTier {
+  ONE_TIME
+  REGULAR
+  WHITE_LABEL
+  AGENCY
+}
+
+enum OrderStatus {
+  NEW
+  CONTENT_WRITING
+  SUBMITTED
+  LIVE
+  DELIVERED
+  REVISION
+  CANCELLED
+}
+
+enum LinkStatus {
+  LIVE
+  BROKEN
+  REDIRECT
+  DEINDEXED
+  UNKNOWN
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  CONVERTED
+}
+
+enum EmailImportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  IMPORTED
+}
+
+enum TeamRole {
+  ADMIN
+  MANAGER
+  WRITER
+  SEO
+  VIEWER
+}
+
+// ---------------------------------------------------------------------------
+// Core CRM models
+// ---------------------------------------------------------------------------
+
+model Site {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  siteName String
+  domain   String   @unique
+  siteType SiteType
+
+  language String @default("English")
+  country  String
+  niche    Json
+  subNiche String
+
+  da                Int
+  dr                Int
+  traffic           Int
+  trafficSource     String
+  spamScore         Int
+  referringDomains  Int
+  indexedPages      Int
+  lastMetricsUpdate DateTime?
+
+  linkType             LinkType
+  sponsoredTag         Boolean          @default(false)
+  acceptedPostTypes    Json
+  minWordCount         Int
+  imagesRequired       Boolean          @default(false)
+  externalLinksAllowed Int
+  authorBioAllowed     Boolean          @default(false)
+  tat                  String
+  contentWrittenBy     ContentWrittenBy
+  acceptsAiContent     AcceptsAiContent
+
+  generalPrice        Float
+  casinoGamblingPrice Float
+  adultPrice          Float
+  pharmacyPrice       Float
+  cryptoFinancePrice  Float
+  datingPrice         Float
+  forexTradingPrice   Float
+  costPrice           Float
+  currency            String  @default("USD")
+
+  contactName   String
+  contactEmail  String
+  whatsapp      String
+  telegram      String
+  paymentMethod Json
+
+  relationshipStatus RelationshipStatus
+  lastContacted      DateTime?
+  responseRate       ResponseRate
+
+  siteStatus      SiteStatus
+  blacklistReason String?
+  googlePenalized GooglePenalized
+
+  sampleUrls         Json
+  editorialStandards EditorialStandards
+  internalNotes      String?           
+
+  timesUsed    Int     @default(0)
+  addedBy      String?
+  priceHistory Json?
+
+  orders    Order[]
+  liveLinks LiveLink[]
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name     String
+  company  String?
+  email    String     @unique
+  whatsapp String?
+  country  String?
+  niche    Json
+  tier     ClientTier
+  notes    String?   
+  currency String     @default("USD")
+
+  orders    Order[]
+  liveLinks LiveLink[]
+  proposals Proposal[]
+  subSheets SubSheet[]
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderNumber String @unique
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  site   Site   @relation(fields: [siteId], references: [id])
+  siteId String
+
+  targetUrl    String
+  anchorText   String
+  contentBrief String?
+
+  agreedPrice  Float
+  costPrice    Float
+  profitMargin Float
+
+  deadline   DateTime?
+  assignedTo String?
+  platform   String?
+
+  status OrderStatus @default(NEW)
+
+  contentDraftUrl String?
+  liveUrl         String?
+  deliveredAt     DateTime?
+  clientApproved  Boolean   @default(false)
+
+  notes String?
+
+  liveLinks LiveLink[]
+}
+
+model LiveLink {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order   Order?  @relation(fields: [orderId], references: [id])
+  orderId String?
+
+  site   Site   @relation(fields: [siteId], references: [id])
+  siteId String
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  liveUrl    String
+  anchorText String?
+  targetUrl  String?
+  isDofollow Boolean @default(true)
+
+  lastChecked DateTime?
+  linkStatus  LinkStatus @default(UNKNOWN)
+  httpStatus  Int?
+
+  notes String?
+}
+
+model Proposal {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proposalNumber String @unique
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  title         String
+  niche         Json
+  daRange       String?
+  budget        Float?
+  numberOfLinks Int?
+  targetCountry String?
+  selectedSites Json
+
+  status ProposalStatus @default(DRAFT)
+  sentAt DateTime?
+  notes  String?       
+  pdfUrl String?
+}
+
+model SubSheet {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client   Client? @relation(fields: [clientId], references: [id])
+  clientId String?
+
+  title          String
+  filters        Json
+  visibleColumns Json
+  sites          Json
+
+  shareToken        String    @unique
+  expiresAt         DateTime?
+  passwordProtected Boolean   @default(false)
+  password          String?
+  viewCount         Int       @default(0)
+}
+
+model EmailImport {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gmailMessageId String    @unique
+  from           String
+  subject        String?
+  receivedAt     DateTime?
+
+  extractedUrls     Json
+  extractedDomains  Json
+  extractedContacts Json
+
+  status          EmailImportStatus @default(PENDING)
+  importedSiteIds Json
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name     String
+  email    String   @unique
+  role     TeamRole
+  isActive Boolean  @default(true)
+  password String? // hashed, for credentials login
+}
+
+// ---------------------------------------------------------------------------
+// NextAuth (@auth/prisma-adapter) required models.
+// User is the auth identity; TeamMember (above) is the app-level profile/role
+// table, keyed by email, kept intentionally separate from NextAuth's User.
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts Account[]
+  sessions Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
