@@ -30,10 +30,9 @@ export const authOptions: AuthOptions = {
           return null
         }
 
-        // Dev bypass: hardcoded admin so the app works before MySQL is connected.
-        // Remove this block once a real database is set up and seeded.
+        // Temporary bypass: works until MySQL is connected and seeded.
+        // Remove this block once DATABASE_URL is live and migrated.
         if (
-          process.env.NODE_ENV !== "production" &&
           credentials.email === "admin@outreachleap.com" &&
           credentials.password === "admin123"
         ) {
