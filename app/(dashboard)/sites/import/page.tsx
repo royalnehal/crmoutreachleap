@@ -31,12 +31,12 @@ function splitCsvLine(line: string): string[] {
     else if (ch === "," && !inQuotes) { cols.push(cur.trim()); cur = "" }
     else { cur += ch }
   }
-  cols.push(cur.trim())
+  cols.push(cur.trim().replace(/\r$/, ""))
   return cols
 }
 
 function parseCsv(text: string): { headers: string[]; rows: PreviewRow[] } {
-  const lines = text.trim().split("\n").filter(Boolean)
+  const lines = text.trim().split(/\r?\n/).filter(Boolean)
   if (lines.length < 2) return { headers: [], rows: [] }
   const headers = splitCsvLine(lines[0])
   const rows = lines.slice(1).map(line => {
