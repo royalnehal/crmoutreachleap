@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(results)
+    return NextResponse.json({ ...results, errorDetails: results.errors })
   } catch (error) {
     return NextResponse.json({ error: "Import failed", details: String(error) }, { status: 500 })
   }
