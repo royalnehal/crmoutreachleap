@@ -21,12 +21,26 @@ const CSV_HEADERS = [
 
 type PreviewRow = Record<string, string>
 
+function splitCsvLine(line: string): string[] {
+  const cols: string[] = []
+  let cur = ""
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') { inQuotes = !inQuotes }
+    else if (ch === "," && !inQuotes) { cols.push(cur.trim()); cur = "" }
+    else { cur += ch }
+  }
+  cols.push(cur.trim())
+  return cols
+}
+
 function parseCsv(text: string): { headers: string[]; rows: PreviewRow[] } {
   const lines = text.trim().split("\n").filter(Boolean)
   if (lines.length < 2) return { headers: [], rows: [] }
-  const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""))
+  const headers = splitCsvLine(lines[0])
   const rows = lines.slice(1).map(line => {
-    const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""))
+    const cols = splitCsvLine(line)
     return Object.fromEntries(headers.map((h, i) => [h, cols[i] ?? ""]))
   })
   return { headers, rows }
