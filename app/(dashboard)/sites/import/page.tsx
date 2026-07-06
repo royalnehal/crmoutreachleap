@@ -16,7 +16,7 @@ const CSV_HEADERS = [
   "generalPrice","casinoGamblingPrice","adultPrice","pharmacyPrice","cryptoFinancePrice",
   "datingPrice","forexTradingPrice","costPrice","currency",
   "contactName","contactEmail","whatsapp","telegram",
-  "relationshipStatus","responseRate","siteStatus","googlePenalized","editorialStandards","internalNotes",
+  "relationshipStatus","responseRate","siteStatus","googlePenalized","editorialStandards","internalNotes","samplePost",
 ]
 
 type PreviewRow = Record<string, string>
@@ -52,11 +52,11 @@ export default function SitesImportPage() {
   const [csvText, setCsvText] = useState("")
   const [preview, setPreview] = useState<{ headers: string[]; rows: PreviewRow[] } | null>(null)
   const [importing, setImporting] = useState(false)
-  const [result, setResult] = useState<{ created: number; skipped: number } | null>(null)
+  const [result, setResult] = useState<{ created: number; updated: number; skipped: number; errorDetails?: string[] } | null>(null)
 
   function downloadTemplate() {
     const sample = [CSV_HEADERS.join(","),
-      'My Blog,example.com,BLOG,US,"Technology,SaaS",SaaS,English,45,52,25000,Ahrefs,2,850,1200,DOFOLLOW,800,2,"5-7 days",AGENCY,YES,150,0,0,0,0,0,0,80,USD,John Doe,john@example.com,+11234567890,,ACTIVE,MEDIUM,ACTIVE,NO,MODERATE,Good site',
+      'My Blog,example.com,BLOG,US,"Technology,SaaS",SaaS,English,45,52,25000,Ahrefs,2,850,1200,DOFOLLOW,800,2,"5-7 days",AGENCY,YES,150,0,0,0,0,0,0,80,USD,John Doe,john@example.com,+11234567890,,ACTIVE,MEDIUM,ACTIVE,NO,MODERATE,Good site,https://example.com/blog/sample-post',
     ].join("\n")
     const blob = new Blob([sample], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
@@ -90,7 +90,7 @@ export default function SitesImportPage() {
       })
       const data = await res.json()
       setResult(data)
-      toast.success(`Import complete: ${data.created} created, ${data.skipped} skipped`)
+      toast.success(`Import complete: ${data.created} created, ${data.updated} updated, ${data.skipped} skipped`)
     } catch {
       toast.error("Import failed")
     } finally {
@@ -175,14 +175,28 @@ export default function SitesImportPage() {
           )}
 
           {preview && preview.rows.length > 0 && (
-            <div className="flex gap-3 items-center">
-              <Button onClick={handleImport} disabled={importing} style={{ backgroundColor: "#6366F1" }}>
-                {importing ? "Importing..." : `Import ${preview.rows.length} Sites`}
-              </Button>
-              {result && (
-                <span className="text-sm text-muted-foreground">
-                  Done: {result.created} created, {result.skipped} skipped
-                </span>
+            <div className="space-y-3">
+              <div className="flex gap-3 items-center">
+                <Button onClick={handleImport} disabled={importing} style={{ backgroundColor: "#6366F1" }}>
+                  {importing ? "Importing..." : `Import ${preview.rows.length} Sites`}
+                </Button>
+                {result && (
+                  <span className="text-sm text-muted-foreground">
+                    Done: {result.created} created, {result.updated} updated, {result.skipped} skipped
+                  </span>
+                )}
+              </div>
+              {result && result.errorDetails && result.errorDetails.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm text-red-600">Skipped Rows — Details</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="text-xs text-muted-foreground space-y-1 max-h-64 overflow-y-auto">
+                      {result.errorDetails.map((err, i) => <li key={i}>{err}</li>)}
+                    </ul>
+                  </CardContent>
+                </Card>
               )}
             </div>
           )}

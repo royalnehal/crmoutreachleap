@@ -6,61 +6,65 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const rows: Record<string, string>[] = body.rows ?? []
 
-    const results = { created: 0, skipped: 0, errors: [] as string[] }
+    const results = { created: 0, updated: 0, skipped: 0, errors: [] as string[] }
 
     for (const row of rows) {
       try {
+        const data = {
+          siteName: row.siteName || row.domain,
+          siteType: (row.siteType?.toUpperCase().replace(/ /g, "_") as never) || "BLOG",
+          country: row.country || "US",
+          niche: row.niche ? [row.niche] : [],
+          subNiche: row.subNiche ?? "",
+          da: parseInt(row.da ?? "0") || 0,
+          dr: parseInt(row.dr ?? "0") || 0,
+          traffic: parseInt(row.traffic ?? "0") || 0,
+          trafficSource: row.trafficSource || "Ahrefs",
+          spamScore: parseInt(row.spamScore ?? "0") || 0,
+          referringDomains: parseInt(row.referringDomains ?? "0") || 0,
+          indexedPages: parseInt(row.indexedPages ?? "0") || 0,
+          linkType: (row.linkType?.toUpperCase().replace(/ /g, "_") as never) || "DOFOLLOW",
+          acceptedPostTypes: [],
+          minWordCount: parseInt(row.minWordCount ?? "500") || 500,
+          externalLinksAllowed: parseInt(row.externalLinksAllowed ?? "2") || 2,
+          tat: row.tat || "5-7 days",
+          contentWrittenBy: (row.contentWrittenBy?.toUpperCase().replace(/ /g, "_") as never) || "AGENCY",
+          acceptsAiContent: (row.acceptsAiContent?.toUpperCase().replace(/ /g, "_") as never) || "YES",
+          generalPrice: parseFloat(row.generalPrice ?? "0") || 0,
+          casinoGamblingPrice: parseFloat(row.casinoGamblingPrice ?? "0") || 0,
+          adultPrice: parseFloat(row.adultPrice ?? "0") || 0,
+          pharmacyPrice: parseFloat(row.pharmacyPrice ?? "0") || 0,
+          cryptoFinancePrice: parseFloat(row.cryptoFinancePrice ?? "0") || 0,
+          datingPrice: parseFloat(row.datingPrice ?? "0") || 0,
+          forexTradingPrice: parseFloat(row.forexTradingPrice ?? "0") || 0,
+          costPrice: parseFloat(row.costPrice ?? "0") || 0,
+          contactName: row.contactName ?? "",
+          contactEmail: row.contactEmail ?? "",
+          whatsapp: row.whatsapp ?? "",
+          telegram: row.telegram ?? "",
+          paymentMethod: [],
+          relationshipStatus: (row.relationshipStatus?.toUpperCase().replace(/ /g, "_") as never) || "COLD",
+          responseRate: (row.responseRate?.toUpperCase().replace(/ /g, "_") as never) || "MEDIUM",
+          siteStatus: (row.siteStatus?.toUpperCase().replace(/ /g, "_") as never) || "ACTIVE",
+          googlePenalized: (row.googlePenalized?.toUpperCase().replace(/ /g, "_") as never) || "NO",
+          sampleUrls: row.samplePost ? [row.samplePost] : [],
+          editorialStandards: (row.editorialStandards?.toUpperCase().replace(/ /g, "_") as never) || "MODERATE",
+          internalNotes: row.internalNotes ?? null,
+        }
+
+        const existing = await prisma.site.findUnique({ where: { domain: row.domain }, select: { id: true } })
+
         await prisma.site.upsert({
           where: { domain: row.domain },
-          create: {
-            siteName: row.siteName ?? row.domain,
-            domain: row.domain,
-            siteType: (row.siteType?.toUpperCase().replace(/ /g, "_") as never) ?? "BLOG",
-            country: row.country ?? "US",
-            niche: row.niche ? [row.niche] : [],
-            subNiche: row.subNiche ?? "",
-            da: parseInt(row.da ?? "0") || 0,
-            dr: parseInt(row.dr ?? "0") || 0,
-            traffic: parseInt(row.traffic ?? "0") || 0,
-            trafficSource: row.trafficSource ?? "Ahrefs",
-            spamScore: parseInt(row.spamScore ?? "0") || 0,
-            referringDomains: parseInt(row.referringDomains ?? "0") || 0,
-            indexedPages: parseInt(row.indexedPages ?? "0") || 0,
-            linkType: (row.linkType?.toUpperCase().replace(/ /g, "_") as never) ?? "DOFOLLOW",
-            acceptedPostTypes: [],
-            minWordCount: parseInt(row.minWordCount ?? "500") || 500,
-            externalLinksAllowed: parseInt(row.externalLinksAllowed ?? "2") || 2,
-            tat: row.tat ?? "5-7 days",
-            contentWrittenBy: (row.contentWrittenBy?.toUpperCase().replace(/ /g, "_") as never) ?? "AGENCY",
-            acceptsAiContent: (row.acceptsAiContent?.toUpperCase().replace(/ /g, "_") as never) ?? "YES",
-            generalPrice: parseFloat(row.generalPrice ?? "0") || 0,
-            casinoGamblingPrice: parseFloat(row.casinoGamblingPrice ?? "0") || 0,
-            adultPrice: parseFloat(row.adultPrice ?? "0") || 0,
-            pharmacyPrice: parseFloat(row.pharmacyPrice ?? "0") || 0,
-            cryptoFinancePrice: parseFloat(row.cryptoFinancePrice ?? "0") || 0,
-            datingPrice: parseFloat(row.datingPrice ?? "0") || 0,
-            forexTradingPrice: parseFloat(row.forexTradingPrice ?? "0") || 0,
-            costPrice: parseFloat(row.costPrice ?? "0") || 0,
-            contactName: row.contactName ?? "",
-            contactEmail: row.contactEmail ?? "",
-            whatsapp: row.whatsapp ?? "",
-            telegram: row.telegram ?? "",
-            paymentMethod: [],
-            relationshipStatus: (row.relationshipStatus?.toUpperCase().replace(/ /g, "_") as never) ?? "COLD",
-            responseRate: (row.responseRate?.toUpperCase().replace(/ /g, "_") as never) ?? "MEDIUM",
-            siteStatus: (row.siteStatus?.toUpperCase().replace(/ /g, "_") as never) ?? "ACTIVE",
-            googlePenalized: (row.googlePenalized?.toUpperCase().replace(/ /g, "_") as never) ?? "NO",
-            sampleUrls: [],
-            editorialStandards: (row.editorialStandards?.toUpperCase().replace(/ /g, "_") as never) ?? "MODERATE",
-          },
-          update: {
-            da: parseInt(row.da ?? "0") || 0,
-            dr: parseInt(row.dr ?? "0") || 0,
-            traffic: parseInt(row.traffic ?? "0") || 0,
-            generalPrice: parseFloat(row.generalPrice ?? "0") || 0,
-          },
+          create: { domain: row.domain, ...data },
+          update: data,
         })
-        results.created++
+
+        if (existing) {
+          results.updated++
+        } else {
+          results.created++
+        }
       } catch (e) {
         results.skipped++
         results.errors.push(`${row.domain}: ${String(e)}`)
