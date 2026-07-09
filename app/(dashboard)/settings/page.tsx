@@ -96,7 +96,7 @@ export default function SettingsPage() {
   // Branding
   const [agencyName, setAgencyName] = useState("OutreachLeap")
   const [contactEmail, setContactEmail] = useState("")
-  const [whatsapp, setWhatsapp] = useState("")
+  const [whatsapp, setWhatsapp] = useState("+916376445266")
   const [website, setWebsite] = useState("")
 
   // Pricing

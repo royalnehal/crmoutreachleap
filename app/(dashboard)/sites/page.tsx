@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import {
-  Plus, Search, Upload, Filter, Globe, Eye, EyeOff, Pencil, Trash2, ChevronDown, ChevronUp
+  Plus, Search, Upload, Filter, Globe, Eye, EyeOff, Pencil, Trash2, ChevronDown, ChevronUp, X
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -56,6 +56,43 @@ const SITE_FIELDS_DEFAULTS = {
   sponsoredTag: false, imagesRequired: false, authorBioAllowed: false,
 }
 
+function DualRangeSlider({
+  label, min, max, valueMin, valueMax, unit = "",
+  onChangeMin, onChangeMax,
+}: {
+  label: string; min: number; max: number; valueMin: number; valueMax: number
+  unit?: string; onChangeMin: (v: number) => void; onChangeMax: (v: number) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between text-xs">
+        <span className="font-medium text-muted-foreground">{label}</span>
+        <span className="text-indigo-600 font-semibold">{unit}{valueMin} – {unit}{valueMax}</span>
+      </div>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground w-4">{min}</span>
+          <input
+            type="range" min={min} max={max} value={valueMin}
+            onChange={e => onChangeMin(Math.min(Number(e.target.value), valueMax - 1))}
+            className="flex-1 h-1.5 accent-indigo-500 cursor-pointer"
+          />
+          <span className="text-xs text-muted-foreground w-6 text-right">{max}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground w-4">{min}</span>
+          <input
+            type="range" min={min} max={max} value={valueMax}
+            onChange={e => onChangeMax(Math.max(Number(e.target.value), valueMin + 1))}
+            className="flex-1 h-1.5 accent-indigo-500 cursor-pointer"
+          />
+          <span className="text-xs text-muted-foreground w-6 text-right">{max}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SitesPage() {
   const { data: session } = useSession()
   const router = useRouter()
@@ -66,6 +103,14 @@ export default function SitesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
+  const [linkTypeFilter, setLinkTypeFilter] = useState("ALL")
+  const [countryFilter, setCountryFilter] = useState("")
+  const [nicheFilter, setNicheFilter] = useState("")
+  const [daMin, setDaMin] = useState(0)
+  const [daMax, setDaMax] = useState(100)
+  const [priceMin, setPriceMin] = useState(0)
+  const [priceMax, setPriceMax] = useState(2000)
+  const [filtersActive, setFiltersActive] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [showCostPrice, setShowCostPrice] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -77,12 +122,22 @@ export default function SitesPage() {
   const [total, setTotal] = useState(0)
   const pageSize = 25
 
+  const hasActiveFilters = daMin > 0 || daMax < 100 || priceMin > 0 || priceMax < 2000
+    || nicheFilter || countryFilter || linkTypeFilter !== "ALL" || statusFilter !== "ALL"
+
   const fetchSites = useCallback(async () => {
     setIsLoading(true)
     try {
       const params = new URLSearchParams({
         search, page: String(page), pageSize: String(pageSize),
         ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+        ...(linkTypeFilter !== "ALL" ? { linkType: linkTypeFilter } : {}),
+        ...(countryFilter ? { country: countryFilter } : {}),
+        ...(nicheFilter ? { niche: nicheFilter } : {}),
+        ...(daMin > 0 ? { daMin: String(daMin) } : {}),
+        ...(daMax < 100 ? { daMax: String(daMax) } : {}),
+        ...(priceMin > 0 ? { priceMin: String(priceMin) } : {}),
+        ...(priceMax < 2000 ? { priceMax: String(priceMax) } : {}),
       })
       const res = await fetch(`/api/sites?${params}`)
       const data = await res.json()
@@ -93,16 +148,31 @@ export default function SitesPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [search, page, statusFilter])
+  }, [search, page, statusFilter, linkTypeFilter, countryFilter, nicheFilter, daMin, daMax, priceMin, priceMax])
 
   useEffect(() => { fetchSites() }, [fetchSites])
 
-  // Open sheet if ?new=true
+  useEffect(() => {
+    setFiltersActive(hasActiveFilters)
+  }, [hasActiveFilters])
+
   useEffect(() => {
     if (searchParams.get("new") === "true") {
       setSheetOpen(true)
     }
   }, [searchParams])
+
+  function resetFilters() {
+    setStatusFilter("ALL")
+    setLinkTypeFilter("ALL")
+    setCountryFilter("")
+    setNicheFilter("")
+    setDaMin(0)
+    setDaMax(100)
+    setPriceMin(0)
+    setPriceMax(2000)
+    setPage(1)
+  }
 
   function openAdd() {
     setEditingSite(null)
@@ -165,7 +235,7 @@ export default function SitesPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Sites"
-        subtitle="Master sheet of all publisher sites"
+        subtitle={`Master sheet · ${total} sites`}
         actions={
           <>
             <Button variant="outline" onClick={() => router.push("/sites/import")} className="gap-2">
@@ -183,28 +253,28 @@ export default function SitesPage() {
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by domain or name..."
+            placeholder="Search by domain, name or niche..."
             className="pl-9"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v ?? ""); setPage(1) }}>
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All Statuses</SelectItem>
-            <SelectItem value="ACTIVE">Active</SelectItem>
-            <SelectItem value="INACTIVE">Inactive</SelectItem>
-            <SelectItem value="ON_HOLD">On Hold</SelectItem>
-            <SelectItem value="BLACKLISTED">Blacklisted</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2">
-          <Filter className="h-4 w-4" /> Filters
+        <Button
+          variant={showFilters ? "default" : "outline"}
+          onClick={() => setShowFilters(!showFilters)}
+          className="gap-2"
+          style={showFilters ? { backgroundColor: "#6366F1" } : {}}
+        >
+          <Filter className="h-4 w-4" />
+          Filters
+          {filtersActive && <Badge className="ml-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-white text-indigo-600">!</Badge>}
           {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </Button>
+        {filtersActive && (
+          <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-1 text-muted-foreground">
+            <X className="h-3 w-3" /> Clear filters
+          </Button>
+        )}
         {isAdmin && (
           <Button variant="ghost" size="sm" onClick={() => setShowCostPrice(!showCostPrice)} className="gap-1 text-muted-foreground">
             {showCostPrice ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -212,6 +282,83 @@ export default function SitesPage() {
           </Button>
         )}
       </div>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="rounded-xl border bg-white p-4 shadow-sm space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Status */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Status</Label>
+              <Select value={statusFilter} onValueChange={v => { setStatusFilter(v ?? "ALL"); setPage(1) }}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Statuses</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                  <SelectItem value="ON_HOLD">On Hold</SelectItem>
+                  <SelectItem value="BLACKLISTED">Blacklisted</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Link Type */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Link Type</Label>
+              <Select value={linkTypeFilter} onValueChange={v => { setLinkTypeFilter(v ?? "ALL"); setPage(1) }}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Types</SelectItem>
+                  <SelectItem value="DOFOLLOW">Dofollow</SelectItem>
+                  <SelectItem value="NOFOLLOW">Nofollow</SelectItem>
+                  <SelectItem value="MIXED">Mixed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Niche */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Niche</Label>
+              <Input
+                placeholder="e.g. Technology"
+                className="h-8 text-sm"
+                value={nicheFilter}
+                onChange={e => { setNicheFilter(e.target.value); setPage(1) }}
+              />
+            </div>
+            {/* Country */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Country</Label>
+              <Input
+                placeholder="e.g. US, UK"
+                className="h-8 text-sm"
+                value={countryFilter}
+                onChange={e => { setCountryFilter(e.target.value); setPage(1) }}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* DA Range */}
+            <DualRangeSlider
+              label="Domain Authority (DA)"
+              min={0} max={100}
+              valueMin={daMin} valueMax={daMax}
+              onChangeMin={v => { setDaMin(v); setPage(1) }}
+              onChangeMax={v => { setDaMax(v); setPage(1) }}
+            />
+            {/* Price Range */}
+            <DualRangeSlider
+              label="General Price"
+              min={0} max={2000}
+              valueMin={priceMin} valueMax={priceMax}
+              unit="$"
+              onChangeMin={v => { setPriceMin(v); setPage(1) }}
+              onChangeMax={v => { setPriceMax(v); setPage(1) }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-lg border bg-white overflow-hidden">
@@ -224,6 +371,7 @@ export default function SitesPage() {
                 <th className="text-left px-4 py-3 font-medium">DR</th>
                 <th className="text-left px-4 py-3 font-medium">Traffic</th>
                 <th className="text-left px-4 py-3 font-medium">Niche</th>
+                <th className="text-left px-4 py-3 font-medium">Country</th>
                 <th className="text-left px-4 py-3 font-medium">Link Type</th>
                 <th className="text-left px-4 py-3 font-medium">Price</th>
                 {isAdmin && showCostPrice && <th className="text-left px-4 py-3 font-medium">Cost</th>}
@@ -235,19 +383,19 @@ export default function SitesPage() {
               {isLoading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className={i % 2 === 1 ? "bg-muted/10" : ""}>
-                    {Array.from({ length: 9 + (isAdmin && showCostPrice ? 1 : 0) }).map((__, j) => (
+                    {Array.from({ length: 10 + (isAdmin && showCostPrice ? 1 : 0) }).map((__, j) => (
                       <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
                     ))}
                   </tr>
                 ))
               ) : sites.length === 0 ? (
                 <tr>
-                  <td colSpan={9 + (isAdmin && showCostPrice ? 1 : 0)}>
+                  <td colSpan={10 + (isAdmin && showCostPrice ? 1 : 0)}>
                     <EmptyState
                       icon={Globe}
-                      title="No sites yet"
-                      description="Import your site list or add your first site manually."
-                      action={{ label: "Add Site", onClick: openAdd }}
+                      title="No sites found"
+                      description={hasActiveFilters ? "Try adjusting your filters." : "Import your site list or add your first site manually."}
+                      action={hasActiveFilters ? { label: "Clear Filters", onClick: resetFilters } : { label: "Add Site", onClick: openAdd }}
                     />
                   </td>
                 </tr>
@@ -258,7 +406,7 @@ export default function SitesPage() {
                     className={`border-b last:border-0 hover:bg-muted/20 ${i % 2 === 1 ? "bg-muted/10" : ""}`}
                   >
                     <td className="px-4 py-3">
-                      <div className="font-medium text-indigo-600">{site.domain}</div>
+                      <div className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => router.push(`/sites/${site.id}`)}>{site.domain}</div>
                       <div className="text-xs text-muted-foreground">{site.siteName}</div>
                     </td>
                     <td className="px-4 py-3 font-medium">{site.da}</td>
@@ -271,6 +419,7 @@ export default function SitesPage() {
                         ))
                         : null}
                     </td>
+                    <td className="px-4 py-3 text-muted-foreground">{site.country}</td>
                     <td className="px-4 py-3">
                       <Badge variant={site.linkType === "DOFOLLOW" ? "default" : "secondary"} className="text-xs">
                         {site.linkType}
@@ -318,42 +467,28 @@ export default function SitesPage() {
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{editingSite ? "Edit Site" : "Add New Site"}</SheetTitle>
-            <SheetDescription>Fill in the site details below. Required fields are marked.</SheetDescription>
+            <SheetDescription>Fill in the site details below.</SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-6">
-            {/* Basic Info */}
             <div>
               <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wide">Basic Info</h3>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Site Name *</Label>
-                  <Input value={form.siteName} onChange={e => setForm(f => ({ ...f, siteName: e.target.value }))} placeholder="My Blog" />
-                </div>
-                <div>
-                  <Label>Domain *</Label>
-                  <Input value={form.domain} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))} placeholder="example.com" />
-                </div>
+                <div><Label>Site Name *</Label><Input value={form.siteName} onChange={e => setForm(f => ({ ...f, siteName: e.target.value }))} placeholder="My Blog" /></div>
+                <div><Label>Domain *</Label><Input value={form.domain} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))} placeholder="example.com" /></div>
                 <div>
                   <Label>Site Type</Label>
                   <Select value={form.siteType} onValueChange={v => setForm(f => ({ ...f, siteType: v ?? "" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["BLOG","MAGAZINE","NEWS","FORUM","NICHE_SITE"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
+                    <SelectContent>{["BLOG","MAGAZINE","NEWS","FORUM","NICHE_SITE"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Country</Label>
-                  <Input value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} placeholder="US" />
-                </div>
-                <div className="col-span-2">
-                  <Label>Niche (comma-separated)</Label>
-                  <Input value={form.niche} onChange={e => setForm(f => ({ ...f, niche: e.target.value }))} placeholder="Technology, SaaS" />
-                </div>
+                <div><Label>Country</Label><Input value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} placeholder="US" /></div>
+                <div className="col-span-2"><Label>Niche (comma-separated)</Label><Input value={form.niche} onChange={e => setForm(f => ({ ...f, niche: e.target.value }))} placeholder="Technology, SaaS" /></div>
+                <div><Label>Sub Niche</Label><Input value={form.subNiche} onChange={e => setForm(f => ({ ...f, subNiche: e.target.value }))} /></div>
+                <div><Label>Language</Label><Input value={form.language} onChange={e => setForm(f => ({ ...f, language: e.target.value }))} /></div>
               </div>
             </div>
             <Separator />
-            {/* SEO Metrics */}
             <div>
               <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wide">SEO Metrics</h3>
               <div className="grid grid-cols-3 gap-3">
@@ -368,10 +503,10 @@ export default function SitesPage() {
                       onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
                   </div>
                 ))}
+                <div><Label>Traffic Source</Label><Input value={form.trafficSource} onChange={e => setForm(f => ({ ...f, trafficSource: e.target.value }))} /></div>
               </div>
             </div>
             <Separator />
-            {/* Content & Links */}
             <div>
               <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wide">Content & Links</h3>
               <div className="grid grid-cols-2 gap-3">
@@ -379,44 +514,37 @@ export default function SitesPage() {
                   <Label>Link Type</Label>
                   <Select value={form.linkType} onValueChange={v => setForm(f => ({ ...f, linkType: v ?? "" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["DOFOLLOW","NOFOLLOW","MIXED"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
+                    <SelectContent>{["DOFOLLOW","NOFOLLOW","MIXED"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>TAT</Label>
-                  <Input value={form.tat} onChange={e => setForm(f => ({ ...f, tat: e.target.value }))} placeholder="5-7 days" />
-                </div>
-                <div>
-                  <Label>Min Word Count</Label>
-                  <Input type="number" value={form.minWordCount} onChange={e => setForm(f => ({ ...f, minWordCount: Number(e.target.value) }))} />
-                </div>
+                <div><Label>TAT</Label><Input value={form.tat} onChange={e => setForm(f => ({ ...f, tat: e.target.value }))} placeholder="5-7 days" /></div>
+                <div><Label>Min Word Count</Label><Input type="number" value={form.minWordCount} onChange={e => setForm(f => ({ ...f, minWordCount: Number(e.target.value) }))} /></div>
+                <div><Label>External Links Allowed</Label><Input type="number" value={form.externalLinksAllowed} onChange={e => setForm(f => ({ ...f, externalLinksAllowed: Number(e.target.value) }))} /></div>
                 <div>
                   <Label>Content Written By</Label>
                   <Select value={form.contentWrittenBy} onValueChange={v => setForm(f => ({ ...f, contentWrittenBy: v ?? "" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["CLIENT","AGENCY","SITE_OWNER"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
+                    <SelectContent>{["CLIENT","AGENCY","SITE_OWNER"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Accepts AI Content</Label>
+                  <Select value={form.acceptsAiContent} onValueChange={v => setForm(f => ({ ...f, acceptsAiContent: v ?? "" }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{["YES","NO","WITH_DISCLOSURE"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </div>
             </div>
             <Separator />
-            {/* Pricing */}
             <div>
-              <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wide">Pricing (USD)</h3>
+              <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wide">Pricing</h3>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: "General Price", key: "generalPrice" },
-                  { label: "Cost Price", key: "costPrice" },
-                  { label: "Casino/Gambling", key: "casinoGamblingPrice" },
-                  { label: "Adult", key: "adultPrice" },
-                  { label: "Pharmacy", key: "pharmacyPrice" },
-                  { label: "Crypto/Finance", key: "cryptoFinancePrice" },
-                  { label: "Dating", key: "datingPrice" },
-                  { label: "Forex/Trading", key: "forexTradingPrice" },
+                  { label: "General Price", key: "generalPrice" }, { label: "Cost Price", key: "costPrice" },
+                  { label: "Casino/Gambling", key: "casinoGamblingPrice" }, { label: "Adult", key: "adultPrice" },
+                  { label: "Pharmacy", key: "pharmacyPrice" }, { label: "Crypto/Finance", key: "cryptoFinancePrice" },
+                  { label: "Dating", key: "datingPrice" }, { label: "Forex/Trading", key: "forexTradingPrice" },
                 ].map(({ label, key }) => (
                   <div key={key}>
                     <Label>{label}</Label>
@@ -424,10 +552,16 @@ export default function SitesPage() {
                       onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
                   </div>
                 ))}
+                <div>
+                  <Label>Currency</Label>
+                  <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v ?? "USD" }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{["USD","EUR","GBP","INR","AUD","CAD"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
             <Separator />
-            {/* Contact */}
             <div>
               <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wide">Contact</h3>
               <div className="grid grid-cols-2 gap-3">
@@ -438,7 +572,6 @@ export default function SitesPage() {
               </div>
             </div>
             <Separator />
-            {/* Quality */}
             <div>
               <h3 className="font-semibold text-sm mb-3 text-muted-foreground uppercase tracking-wide">Quality & Status</h3>
               <div className="grid grid-cols-2 gap-3">
@@ -446,36 +579,35 @@ export default function SitesPage() {
                   <Label>Site Status</Label>
                   <Select value={form.siteStatus} onValueChange={v => setForm(f => ({ ...f, siteStatus: v ?? "" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["ACTIVE","INACTIVE","ON_HOLD","BLACKLISTED"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
+                    <SelectContent>{["ACTIVE","INACTIVE","ON_HOLD","BLACKLISTED"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label>Relationship Status</Label>
                   <Select value={form.relationshipStatus} onValueChange={v => setForm(f => ({ ...f, relationshipStatus: v ?? "" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["COLD","NEGOTIATING","ACTIVE","PREFERRED","BLACKLISTED"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
+                    <SelectContent>{["COLD","NEGOTIATING","ACTIVE","PREFERRED","BLACKLISTED"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label>Google Penalized</Label>
                   <Select value={form.googlePenalized} onValueChange={v => setForm(f => ({ ...f, googlePenalized: v ?? "" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["YES","NO","UNKNOWN"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
+                    <SelectContent>{["YES","NO","UNKNOWN"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label>Editorial Standards</Label>
                   <Select value={form.editorialStandards} onValueChange={v => setForm(f => ({ ...f, editorialStandards: v ?? "" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["STRICT","MODERATE","FLEXIBLE"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
+                    <SelectContent>{["STRICT","MODERATE","FLEXIBLE"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Response Rate</Label>
+                  <Select value={form.responseRate} onValueChange={v => setForm(f => ({ ...f, responseRate: v ?? "" }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{["FAST","MEDIUM","SLOW","UNRESPONSIVE"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="col-span-2">
@@ -489,7 +621,6 @@ export default function SitesPage() {
                 </div>
               </div>
             </div>
-
             <div className="flex gap-2 pt-2">
               <Button onClick={handleSave} disabled={saving} className="flex-1" style={{ backgroundColor: "#6366F1" }}>
                 {saving ? "Saving..." : editingSite ? "Update Site" : "Create Site"}
@@ -500,20 +631,17 @@ export default function SitesPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Delete confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Site</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{deleteTarget?.domain}</strong>? This action cannot be undone.
+              Are you sure you want to delete <strong>{deleteTarget?.domain}</strong>? This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
